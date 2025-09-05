@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Galaxy Auth — Nebula Login</title>
+
+<!-- Futuristic typography -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Exo+2:wght@300;400;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg1: #0a0b1a;
+    --bg2: #0b1233;
+    --nebula-1: #7f5af0;
+    --nebula-2: #00d4ff;
+    --nebula-3: #ff4d9d;
+    --text: #e6eeff;
+    --muted: #9fb3ff;
+    --accent: #9b5cff;
+    --good: #55ffb0;
+    --bad: #ff6b6b;
+    --glass: rgba(255,255,255,0.06);
+    --glass-2: rgba(255,255,255,0.12);
+    --ring: rgba(155,92,255,0.4);
+    --shadow: 0 10px 40px rgba(0,0,0,0.45), inset 0 0 24px rgba(255,255,255,0.04);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body{
+    margin:0;
+    color:var(--text);
+    background:
+      radial-gradient(1200px 600px at 10% 10%, rgba(127,90,240,0.12), transparent 60%),
+      radial-gradient(900px 900px at 80% 20%, rgba(0,212,255,0.10), transparent 60%),
+      radial-gradient(1200px 900px at 50% 110%, rgba(255,77,157,0.10), transparent 60%),
+      linear-gradient(160deg, var(--bg1), var(--bg2));
+    font-family: "Exo 2", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    overflow:hidden;
+  }
+
+  /* Starfield canvas layers */
+  #stars, #warp {
+    position: fixed; inset:0; width:100%; height:100%; z-index:-2;
+  }
+  #warp { z-index:-1; pointer-events:none; }
+
+  /* Layout */
+  .wrap{
+    position:relative;
+    display:grid;
+    place-items:center;
+    min-height:100dvh;
+    padding: clamp(16px, 3vw, 32px);
+  }
+  .shell{
+    width:min(960px, 95vw);
+    display:grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap:20px;
+  }
+  @media (max-width: 920px){
+    .shell{ grid-template-columns: 1fr; }
+  }
+
+  /* Card / glass */
+  .card{
+    position:relative;
+    background:linear-gradient(180deg, rgba(15,17,35,0.6), rgba(10,11,26,0.6));
+    border-radius:24px;
+    box-shadow: var(--shadow);
+    border:1px solid rgba(255,255,255,0.08);
+    overflow:hidden;
+    backdrop-filter: blur(12px) saturate(120%);
+  }
+  .card::before{
+    content:"";
+    position:absolute; inset:-2px;
+    background:
+      conic-gradient(from 180deg at 70% 10%, rgba(155,92,255,0.35), rgba(0,212,255,0.25), rgba(255,77,157,0.35), rgba(155,92,255,0.35));
+    filter: blur(24px);
+    opacity:0.35;
+    z-index:-1;
+  }
+
+  .left{
+    padding:28px clamp(20px,3vw,32px);
+    display:flex; flex-direction:column; gap:16px;
+  }
+  .right{
+    padding:24px;
+    display:flex; flex-direction:column; gap:14px;
+  }
+
+  /* Header */
+  .brand{
+    display:flex; align-items:center; gap:12px;
+    font-family: "Orbitron", ui-sans-serif;
+    letter-spacing: 0.08em;
+    font-weight:700; font-size: clamp(16px, 2.2vw, 20px);
+    color:var(--text);
+    text-shadow: 0 0 12px rgba(159,179,255,0.35);
+  }
+  .brand .dot{
+    width:14px; height:14px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #9b5cff 60%, transparent 70%);
+    box-shadow: 0 0 24px 8px #9b5cff55, 0 0 48px 16px #00d4ff33;
+  }
+  .sub{
+    color:var(--muted);
+    margin-top:-6px;
+    font-size:14px;
+  }
+
+  /* Tabs */
+  .tabs{
+    margin-top:10px;
+    display:flex; gap:8px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    padding:6px;
+    border-radius:14px;
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:10px 12px;
+    border-radius:10px;
+    cursor:pointer;
+    user-select:none;
+    font-family:"Orbitron", sans-serif;
+    font-size:13px;
+    letter-spacing:.08em;
+    transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+    border:1px solid transparent;
+  }
+  .tab.active{
+    background: linear-gradient(180deg, rgba(155,92,255,0.18), rgba(0,212,255,0.14));
+    box-shadow: 0 0 0 2px var(--ring), inset 0 0 18px rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.12);
+    transform: translateY(-1px);
+  }
+
+  /* Forms */
+  form{
+    display:grid; gap:14px;
+    margin-top:16px;
+  }
+  .row{
+    display:grid; gap:8px;
+  }
+  label{
+    font-size:12px; letter-spacing:.08em; opacity:.9;
+    font-family:"Orbitron", sans-serif;
+  }
+  .input{
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    border:1px solid rgba(255,255,255,0.10);
+    border-radius:12px; padding:12px 14px;
+    color:var(--text);
+    outline:none;
+    box-shadow: inset 0 0 0 1px rgba(155,92,255,0.15);
+    transition: box-shadow .25s ease, transform .12s ease;
+  }
+  .input:focus{
+    box-shadow:
+      0 0 24px 6px rgba(155,92,255,0.20),
+      0 0 36px 12px rgba(0,212,255,0.16),
+      inset 0 0 0 1px rgba(155,92,255,0.35);
+    transform: translateZ(0) scale(1.01);
+    animation: starPulse 1.2s ease infinite;
+  }
+
+  @keyframes starPulse{
+    0%{ text-shadow: 0 0 0 rgba(255,255,255,0);}
+    50%{ text-shadow: 0 0 12px rgba(255,255,255,0.6);}
+    100%{ text-shadow: 0 0 0 rgba(255,255,255,0);}
+  }
+
+  .btn{
+    position:relative;
+    border:none; cursor:pointer;
+    padding:12px 16px;
+    border-radius:14px;
+    font-weight:700;
+    color:#0a0b1a;
+    letter-spacing:.08em;
+    background: linear-gradient(90deg, #9b5cff, #00d4ff);
+    box-shadow:
+      0 8px 28px rgba(155,92,255,0.45),
+      0 12px 36px rgba(0,212,255,0.35),
+      inset 0 0 12px rgba(255,255,255,0.35);
+    transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+    overflow:hidden;
+  }
+  .btn:hover{ filter: brightness(1.06); }
+  .btn:active{ transform: translateY(1px) scale(0.995); }
+
+  /* Spaceship icon on submit */
+  .btn .ship{
+    position:absolute; right:-28px; top:50%;
+    width:22px; height:22px; transform: translateY(-50%) rotate(45deg);
+    transition: transform .6s cubic-bezier(.2,.8,.2,1), right .6s cubic-bezier(.2,.8,.2,1);
+    filter: drop-shadow(0 6px 10px rgba(0,212,255,0.6));
+  }
+  .btn.launch .ship{
+    right: -6px;
+    transform: translateY(-50%) rotate(45deg) translateX(140%);
+  }
+
+  .hint{ font-size:12px; color:var(--muted); }
+  .error{ color:var(--bad); font-size:12px; }
+  .ok{ color:var(--good); font-size:12px; }
+
+  /* Right panel (Profile) */
+  .profile-wrap{
+    display:none;
+  }
+  .profile-wrap.active{ display:block; }
+
+  .badge{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 12px; border-radius:999px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    border:1px solid rgba(255,255,255,0.10);
+    font-family:"Orbitron", sans-serif;
+    letter-spacing:.06em; font-size:12px;
+  }
+  .signal{
+    width:10px; height:10px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #00ffbf, #00d4ff 70%, transparent 71%);
+    box-shadow: 0 0 16px 4px #00e6ff66;
+    animation: ping 2s ease-out infinite;
+  }
+  @keyframes ping{
+    0%{ box-shadow: 0 0 0 0 rgba(0,230,255,0.5);}
+    70%{ box-shadow: 0 0 0 12px rgba(0,230,255,0);}
+    100%{ box-shadow: 0 0 0 0 rgba(0,230,255,0);}
+  }
+
+  .row.inline{ display:flex; gap:10px; align-items:center; }
+
+  .avatar{
+    --c: #9b5cff;
+    width:64px; height:64px; border-radius:18px;
+    background:
+      radial-gradient(circle at 35% 30%, #fff8, transparent 35%),
+      radial-gradient(80px 60px at 70% 70%, var(--c), transparent 60%),
+      linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    border:1px solid rgba(255,255,255,0.12);
+    box-shadow: var(--shadow), 0 0 36px 6px var(--c)66;
+  }
+
+  .logout{
+    background: linear-gradient(90deg, #ff6b6b, #ff9b50);
+    color:#1b0a0a;
+  }
+
+  /* Warp screen flash */
+  .warp-flash{
+    position:fixed; inset:0; pointer-events:none;
+    background: radial-gradient(closest-side, rgba(255,255,255,0.7), rgba(255,255,255,0.0) 70%);
+    opacity:0; transition: opacity .5s ease;
+    mix-blend-mode: screen;
+  }
+  .warp-flash.show{ opacity:0.8; }
+
+  /* Footer link */
+  .mini{
+    position:fixed; right:10px; bottom:8px;
+    font-size:11px; color:#bcd3ff99;
+  }
+  .mini a{ color: inherit; }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<canvas id="warp"></canvas>
+<div class="warp-flash" id="warpFlash"></div>
+
+<div class="wrap">
+  <div class="shell">
+    <!-- Auth / Forms -->
+    <section class="card left">
+      <div class="brand">
+        <div class="dot"></div>
+        GALAXY AUTH
+      </div>
+      <div class="sub">Log in through glowing nebulae. Warp into your profile.</div>
+
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="login">LOGIN</div>
+        <div class="tab" data-tab="signup">SIGNUP</div>
+      </div>
+
+      <!-- Login Form -->
+      <form id="loginForm" autocomplete="off">
+        <div class="row">
+          <label>USERNAME</label>
+          <input class="input" name="username" placeholder="e.g., nova_pilot" required />
+        </div>
+        <div class="row">
+          <label>PASSWORD</label>
+          <input class="input" type="password" name="password" placeholder="••••••••" required />
+        </div>
+        <div class="row inline">
+          <button class="btn" id="loginBtn" type="submit">
+            Engage Warp
+            <svg class="ship" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2l4 8-4 4-4-4 4-8zM4 20l8-6 8 6H4z" fill="white"/>
+            </svg>
+          </button>
+          <span class="hint" id="loginHint">Logging in feels like a warp jump.</span>
+        </div>
+        <div class="error" id="loginError"></div>
+      </form>
+
+      <!-- Signup Form -->
+      <form id="signupForm" autocomplete="off" style="display:none;">
+        <div class="row">
+          <label>USERNAME</label>
+          <input class="input" name="username" placeholder="choose a callsign" required />
+        </div>
+        <div class="row">
+          <label>PASSWORD</label>
+          <input class="input" type="password" name="password" placeholder="set a strong passphrase" required minlength="6" />
+        </div>
+        <div class="row">
+          <label>CONFIRM PASSWORD</label>
+          <input class="input" type="password" name="confirm" placeholder="repeat your passphrase" required minlength="6" />
+        </div>
+        <div class="row inline">
+          <button class="btn" id="signupBtn" type="submit">
+            Launch Vessel
+            <svg class="ship" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2l4 8-4 4-4-4 4-8zM4 20l8-6 8 6H4z" fill="white"/>
+            </svg>
+          </button>
+          <span class="hint">You’ll spawn in the Andromeda hub.</span>
+        </div>
+        <div class="error" id="signupError"></div>
+      </form>
+    </section>
+
+    <!-- Profile / App -->
+    <section class="card right profile-wrap" id="app">
+      <div class="row inline" style="justify-content:space-between;">
+        <div class="badge">
+          <span class="signal"></span>
+          <span id="syncText">Waiting for signal...</span>
+        </div>
+        <button class="btn logout" id="logoutBtn">Exit Airlock</button>
+      </div>
+
+      <div class="row inline" style="gap:16px;">
+        <div class="avatar" id="avatar"></div>
+        <div>
+          <div style="font-size:18px; font-weight:700; letter-spacing:.04em; font-family:'Orbitron',sans-serif;" id="greeting">Welcome, Explorer</div>
+          <div class="hint">Location: Andromeda Station • Clearance: Captain</div>
+        </div>
+      </div>
+
+      <form id="profileForm">
+        <div class="row">
+          <label>DISPLAY NAME</label>
+          <input class="input" name="displayName" placeholder="Your cosmic alias" />
+        </div>
+        <div class="row">
+          <label>BIO</label>
+          <textarea class="input" name="bio" rows="3" placeholder="Transmissions you'd like other travelers to receive..."></textarea>
+        </div>
+        <div class="row">
+          <label>AVATAR GLOW</label>
+          <input class="input" type="color" name="color" value="#9b5cff" />
+        </div>
+        <div class="row inline">
+          <button class="btn" id="saveBtn" type="submit">
+            Broadcast Update
+            <svg class="ship" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2l4 8-4 4-4-4 4-8zM4 20l8-6 8 6H4z" fill="white"/>
+            </svg>
+          </button>
+          <span id="saveStatus" class="ok" style="display:none;">Signal sent ✔</span>
+        </div>
+      </form>
+
+      <div class="hint">Real-time sync across tabs simulates “live signals traveling through space.”</div>
+    </section>
+  </div>
+</div>
+
+<div class="mini">Demo only — uses localStorage as the “backend”.</div>
+
+<script>
+/* =======================
+   Tiny "Backend" (Demo)
+   ======================= */
+const GalaxyAuth = (() => {
+  const KEY_USERS = 'galaxy_users';
+  const KEY_SESSION = 'galaxy_session';
+  const channel = ('BroadcastChannel' in window) ? new BroadcastChannel('galaxy-sync') : null;
+
+  const nowISO = () => new Date().toISOString();
+
+  function loadUsers(){
+    try { return JSON.parse(localStorage.getItem(KEY_USERS) || '{}'); }
+    catch { return {}; }
+  }
+  function saveUsers(users){
+    localStorage.setItem(KEY_USERS, JSON.stringify(users));
+  }
+  function djb2(str){
+    let h = 5381;
+    for (let i=0;i<str.length;i++){ h = ((h<<5)+h) + str.charCodeAt(i); h = h >>> 0; }
+    return h.toString(16);
+  }
+
+  return {
+    signup: async (username, password) => {
+      const users = loadUsers();
+      if(users[username]) throw new Error('Username already docked at this station.');
+      users[username] = {
+        passwordHash: djb2(password),
+        createdAt: nowISO(),
+        profile: {
+          displayName: username,
+          bio: 'Fresh traveler in the Nebula Network.',
+          color: '#9b5cff',
+          updatedAt: nowISO()
+        }
+      };
+      saveUsers(users);
+      return true;
+    },
+    login: async (username, password) => {
+      const users = loadUsers();
+      const user = users[username];
+      if(!user) throw new Error('Unknown callsign.');
+      if(user.passwordHash !== djb2(password)) throw new Error('Warp key mismatch.');
+      localStorage.setItem(KEY_SESSION, JSON.stringify({ username, at: nowISO() }));
+      return true;
+    },
+    logout: () => { localStorage.removeItem(KEY_SESSION); },
+    getSession: () => {
+      try{ return JSON.parse(localStorage.getItem(KEY_SESSION) || 'null'); }
+      catch{ return null; }
+    },
+    getProfile: (username) => {
+      const users = loadUsers();
+      return users[username]?.profile || null;
+    },
+    updateProfile: (username, data) => {
+      const users = loadUsers();
+      if(!users[username]) throw new Error('User not found.');
+      users[username].profile = { ...users[username].profile, ...data, updatedAt: nowISO() };
+      saveUsers(users);
+
+      // Broadcast to other tabs
+      const payload = { type:'profile:update', username, profile: users[username].profile };
+      if(channel) channel.postMessage(payload);
+      localStorage.setItem('galaxy_last_update', JSON.stringify({ t: Date.now(), payload }));
+      return users[username].profile;
+    },
+    onBroadcast: (cb) => {
+      if(channel){
+        channel.onmessage = (ev) => cb(ev.data);
+      }
+      // storage fallback
+      window.addEventListener('storage', (e) => {
+        if(e.key === 'galaxy_last_update' && e.newValue){
+          try { cb(JSON.parse(e.newValue).payload); } catch {}
+        }
+      });
+    }
+  };
+})();
+
+/* =======================
+   Starfield + Warp Effect
+   ======================= */
+(function(){
+  const canvas = document.getElementById('stars');
+  const ctx = canvas.getContext('2d');
+  let w, h, stars;
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    stars = Array.from({length: Math.min(450, Math.floor(w*h/5000))}, () => ({
+      x: Math.random()*w,
+      y: Math.random()*h,
+      r: Math.random()*1.2 + 0.2,
+      a: Math.random()*1,
+      v: Math.random()*0.6 + 0.2
+    }));
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    for(const s of stars){
+      s.a += (Math.random()*0.15 - 0.075);
+      const alpha = 0.35 + 0.35*Math.sin(s.a);
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = '#eaf2ff';
+      ctx.fill();
+      // slight drift
+      s.x += (Math.random()-0.5)*0.05;
+      s.y += (Math.random()-0.5)*0.05;
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+function warpJump(){
+  const warp = document.getElementById('warp');
+  const wctx = warp.getContext('2d');
+  const flash = document.getElementById('warpFlash');
+  let W = warp.width = window.innerWidth;
+  let H = warp.height = window.innerHeight;
+  const cx = W/2, cy = H/2;
+  const streaks = [];
+
+  for(let i=0;i<600;i++){
+    const angle = Math.random()*Math.PI*2;
+    const dist = Math.random()*Math.min(cx,cy);
+    const x = cx + Math.cos(angle)*dist;
+    const y = cy + Math.sin(angle)*dist;
+    streaks.push({ x, y, vx:(x-cx)*0.02, vy:(y-cy)*0.02, life: Math.random()*0.6+0.4 });
+  }
+
+  flash.classList.add('show');
+  let t = 0;
+  function step(){
+    wctx.clearRect(0,0,W,H);
+    wctx.lineWidth = 1.2;
+    wctx.strokeStyle = 'rgba(200,230,255,0.8)';
+    for(const s of streaks){
+      wctx.beginPath();
+      wctx.moveTo(s.x, s.y);
+      wctx.lineTo(s.x + s.vx*18, s.y + s.vy*18);
+      wctx.stroke();
+      s.x += s.vx; s.y += s.vy;
+      s.life -= 0.03;
+    }
+    t += 1/60;
+    if(t < 1){
+      requestAnimationFrame(step);
+    } else {
+      flash.classList.remove('show');
+      wctx.clearRect(0,0,W,H);
+    }
+  }
+  step();
+}
+
+/* =======================
+   UI Logic
+   ======================= */
+const $ = (sel, ctx=document) => ctx.querySelector(sel);
+
+const tabs = $('#tabs');
+const loginForm = $('#loginForm');
+const signupForm = $('#signupForm');
+const loginBtn = $('#loginBtn');
+const signupBtn = $('#signupBtn');
+const loginError = $('#loginError');
+const signupError = $('#signupError');
+const app = $('#app');
+const avatar = $('#avatar');
+const greeting = $('#greeting');
+const profileForm = $('#profileForm');
+const saveBtn = $('#saveBtn');
+const saveStatus = $('#saveStatus');
+const logoutBtn = $('#logoutBtn');
+const syncText = $('#syncText');
+
+function setTab(which){
+  const all = tabs.querySelectorAll('.tab');
+  all.forEach(t => t.classList.toggle('active', t.dataset.tab === which));
+  loginForm.style.display = which === 'login' ? 'grid' : 'none';
+  signupForm.style.display = which === 'signup' ? 'grid' : 'none';
+}
+tabs.addEventListener('click', (e)=>{
+  const t = e.target.closest('.tab');
+  if(!t) return;
+  setTab(t.dataset.tab);
+});
+
+function spaceshipLaunch(button){
+  button.classList.add('launch');
+  setTimeout(()=>button.classList.remove('launch'), 700);
+}
+
+function updateUIForSession(){
+  const session = GalaxyAuth.getSession();
+  if(session){
+    const profile = GalaxyAuth.getProfile(session.username);
+    if(profile){
+      app.classList.add('active');
+      greeting.textContent = Welcome, ${profile.displayName};
+      avatar.style.setProperty('--c', profile.color||'#9b5cff');
+      profileForm.displayName.value = profile.displayName||'';
+      profileForm.bio.value = profile.bio||'';
+      profileForm.color.value = profile.color||'#9b5cff';
+      syncText.textContent = Signal locked • ${new Date().toLocaleTimeString()};
+    }
+  } else {
+    app.classList.remove('active');
+  }
+}
+
+// Login
+loginForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  loginError.textContent = '';
+  const fd = new FormData(loginForm);
+  const username = (fd.get('username')||'').toString().trim();
+  const password = (fd.get('password')||'').toString();
+
+  spaceshipLaunch(loginBtn);
+  try{
+    await GalaxyAuth.login(username, password);
+    warpJump(); // hyperspace
+    updateUIForSession();
+  }catch(err){
+    loginError.textContent = err.message || 'Login failed.';
+  }
+});
+
+// Signup
+signupForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  signupError.textContent = '';
+  const fd = new FormData(signupForm);
+  const username = (fd.get('username')||'').toString().trim();
+  const password = (fd.get('password')||'').toString();
+  const confirm = (fd.get('confirm')||'').toString();
+
+  if(password.length < 6){
+    signupError.textContent = 'Passphrase should be at least 6 characters.';
+    return;
+  }
+  if(password !== confirm){
+    signupError.textContent = 'Passphrases do not match.';
+    return;
+  }
+
+  spaceshipLaunch(signupBtn);
+  try{
+    await GalaxyAuth.signup(username, password);
+    await GalaxyAuth.login(username, password);
+    warpJump();
+    setTab('login'); // visual hint you’re “moving” to app
+    updateUIForSession();
+  }catch(err){
+    signupError.textContent = err.message || 'Signup failed.';
+  }
+});
+
+// Profile Save (real-time sync)
+profileForm.addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const session = GalaxyAuth.getSession();
+  if(!session) return;
+  const fd = new FormData(profileForm);
+  const payload = {
+    displayName: (fd.get('displayName')||'').toString().trim() || session.username,
+    bio: (fd.get('bio')||'').toString(),
+    color: (fd.get('color')||'#9b5cff').toString()
+  };
+  spaceshipLaunch(saveBtn);
+  const p = GalaxyAuth.updateProfile(session.username, payload);
+  // Local reflect
+  avatar.style.setProperty('--c', p.color);
+  greeting.textContent = Welcome, ${p.displayName};
+  saveStatus.style.display = 'inline';
+  setTimeout(()=> saveStatus.style.display='none', 1200);
+  syncText.textContent = Signal broadcast • ${new Date().toLocaleTimeString()};
+});
+
+// Logout
+logoutBtn.addEventListener('click', ()=>{
+  GalaxyAuth.logout();
+  updateUIForSession();
+});
+
+// Incoming broadcasts
+GalaxyAuth.onBroadcast((msg)=>{
+  const session = GalaxyAuth.getSession();
+  if(!session) return;
+  if(msg?.type === 'profile:update' && msg.username === session.username){
+    // Update live
+    const p = msg.profile;
+    avatar.style.setProperty('--c', p.color);
+    greeting.textContent = Welcome, ${p.displayName};
+    profileForm.displayName.value = p.displayName||'';
+    profileForm.bio.value = p.bio||'';
+    profileForm.color.value = p.color||'#9b5cff';
+    syncText.textContent = Signal synced • ${new Date().toLocaleTimeString()};
+  }
+});
+
+// Boot
+updateUIForSession();
+
+/* Accessibility niceties */
+document.addEventListener('keydown',(e)=>{
+  if(e.ctrlKey && e.key.toLowerCase()==='l'){ e.preventDefault(); setTab('login'); }
+  if(e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); setTab('signup'); }
+});
+</script>
+</body>
+</html>
